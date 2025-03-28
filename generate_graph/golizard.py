@@ -25,7 +25,7 @@ sys.path.extend([
     os.path.join(BASE_DIR, 'retrieval')
 ])
 from generate_graphviz import generate_graphviz
-from get_go_terms import load_go_terms_dict
+from retrieval.get_go_terms import load_go_terms_dict
 from go_graph_cleaning import process_cleaning
 from process_svg import process_svg_file
 

@@ -7,6 +7,8 @@ import logging
 import sys
 from map_to_uniprot import process_id_file
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
@@ -14,13 +16,33 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S"
 )
 base_url = "http://rest.uniprot.org/uniprot/"
+mapping = f"{SCRIPT_DIR}/meta/go_evidence_map.csv"
 
+EVIDENCE_SCORES = {
+    "EXP": 1.00,  # Gold standard
+    "IDA": 0.95,
+    "IPI": 0.90,
+    "IMP": 0.85,
+    "IGI": 0.85,
+    "IEP": 0.80,
+    "TAS": 0.75,
+    "IC": 0.70,
+    "ISS": 0.60,
+    "NAS": 0.50,
+    "IEA": 0.30,  # Auto-annotation; lowest confidence
+}
 
-def get_go_summaries(uniprot_id: str) -> dict:
+ONOTLOGIES = {
+    "P": "GO:0008150",
+    "F": "GO:0003674",
+    "C": "GO:0005575"
+}
+
+def get_go_terms(uniprot_id: str) -> list[tuple]:
     """
-    Get the GO terms (ID + description + aspect + evidence) for a UniProt ID.
+    Get the GO terms (ID + description + evidence) for a UniProt ID.
     :param uniprot_id: UniProt ID (e.g., "Q9Y263")
-    :return: list of dicts: [{go_id, term, aspect, evidence}, ...]
+    :return: list of dicts: [{go_id, term, evidence}, ...]
     """
     xml_url = f'{base_url}{uniprot_id}.xml'
     try:
@@ -37,50 +59,26 @@ def get_go_summaries(uniprot_id: str) -> dict:
         go_entries = []
         for db_ref in root.findall(f".//{namespace}dbReference[@type='GO']"):
             go_id = db_ref.get("id", "")
-            term = aspect = evidence = None
+            term = evidence = None
             for prop in db_ref.findall(f"{namespace}property"):
-                if prop.attrib["type"] == "term":
+                if prop.attrib["type"] == "category":
+                    term = prop.attrib["value"]
+                elif prop.attrib["type"] == "term":
                     term = prop.attrib["value"]
                 elif prop.attrib["type"] == "evidence":
                     evidence = prop.attrib["value"]
-            go_entries.append({
-                "go_id": go_id,
-                "term": term,   # 'P' (Process), 'F' (Function), 'C' (Component)
-                "evidence": evidence
-            })
+
+            #evidence_score = EVIDENCE_SCORES.get(evidence, 0.3)
+
+            go_entries.append((
+                go_id,
+                term,   # 'P' (Process), 'F' (Function), 'C' (Component)
+                evidence
+            ))
         return go_entries
+
     except Exception as e:
         logging.error(f"Failed to parse GO terms for {uniprot_id}: {e}")
-        return []
-
-def get_go_ids(uniprot_id: str) -> list:
-    """
-    Get the GO terms (GO: IDs only) for a given UniProt ID.
-
-    :param uniprot_id: UniProt ID (e.g., "Q9Y263")
-    :return: list of GO ID strings (e.g., ["GO:0005829", "GO:0010008", ...])
-    """
-    xml_url = f'{base_url}{uniprot_id}.xml'
-
-    try:
-        with urllib.request.urlopen(xml_url) as response:
-            xml = response.read().decode('utf-8')
-
-    except urllib.error.HTTPError as e:
-        logging.error(f"Failed to retrieve GO data for {uniprot_id}: {e}")
-        return []
-    try:
-
-        root = ET.fromstring(xml)
-        namespace = "{http://uniprot.org/uniprot}"
-
-        go_ids = [
-            db_ref.get("id", "")
-            for db_ref in root.findall(f".//{namespace}dbReference[@type='GO']")
-        ]
-        return go_ids
-    except Exception as e:
-        logging.error(f"Failed to parse data for {uniprot_id}: {e}")
         return []
 
 def get_go_terms_batch(uniprot_ids: list) -> dict:
@@ -92,7 +90,7 @@ def get_go_terms_batch(uniprot_ids: list) -> dict:
     uniprot_ids = list(set(uniprot_ids)) # Unique IDs
     go_terms = {}
     for uniprot_id in uniprot_ids:
-        go_terms[uniprot_id] = get_go_ids(uniprot_id)
+        go_terms[uniprot_id] = get_go_terms(uniprot_id)
     return go_terms
 
 def validate_uniprot_ids(uniprot_ids: list) -> dict:
@@ -104,7 +102,7 @@ def validate_uniprot_ids(uniprot_ids: list) -> dict:
     valid_ids = {}
     for uniprot_id in uniprot_ids:
         try:
-            go_terms = get_go_ids(uniprot_id)
+            go_terms = get_go_terms(uniprot_id)
             if go_terms:
                 valid_ids[uniprot_id] = go_terms
             else:
@@ -152,6 +150,7 @@ def main(input_file: str, output_file: str):
         logging.warning("No GO terms found for the provided UniProt IDs.")
         sys.exit(1)
 
+"""
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Retrieve GO terms for UniProt IDs.")
     parser.add_argument("--file", required=True, help="Path to the file containing UniProt IDs.")
@@ -163,3 +162,7 @@ if __name__ == "__main__":
     except Exception as e:
         logging.error(f"Error during GO term retrieval: {e}")
         sys.exit(1)
+"""
+id_list = ["G1TTU1", "G3HXZ8","I7GSK6","P01308","P01323","P67972","Q52PU3"]
+go_terms = get_go_terms_batch(id_list)
+print(go_terms)
