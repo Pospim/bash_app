@@ -1,0 +1,18 @@
+edge_type_colors = {
+    'is_a': '#000000',                    # black
+    'part_of': '#000080',                 # dark blue
+    'regulates': '#FFD700',               # gold
+    'positively_regulates': '#00FF00',    # green
+    'negatively_regulates': '#FF0000',    # red
+    'occurs_in': '#40E0D0',               # turquoise
+    'capable_of': '#ADD8E6',              # light blue
+    'capable_of_part_of': '#FFA500',      # orange
+    'has_part': '#FFC0CB',                # pink
+    'default_color': '#FFFFFF'            # white
+}
+# Define node colors for the three GO namespaces
+node_color = {
+    'GO:0003674': '#1f77b4',  # Blue for molecular function
+    'GO:0008150': '#2ca02c',  # Green for biological process
+    'GO:0005575': '#ff7f0e',  # Orange for cellular component
+}

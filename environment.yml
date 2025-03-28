@@ -1,0 +1,17 @@
+name: goliz
+channels:
+  - bioconda
+  - https://repo.anaconda.com/pkgs/main
+  - https://repo.anaconda.com/pkgs/r
+dependencies:
+  - python
+  - pyfastaq
+  - numpy
+  - pandas
+  - edlib
+  - biopython
+  - scipy
+  - requests
+  - obonet
+  - pygraphviz
+prefix: /home/pospim/miniconda3/envs/goliz

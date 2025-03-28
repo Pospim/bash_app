@@ -1,0 +1,54 @@
+digraph "go/subsets/goslim_plant" {
+	graph ["data-version"="go/2023-07-27/subsets/goslim_plant.owl",
+		"format-version"=1.2,
+		instances="[]",
+		name="go/subsets/goslim_plant",
+		ontology="go/subsets/goslim_plant",
+		property_value="['owl:versionInfo \"2023-07-27\" xsd:string']",
+		subsetdef="['chebi_ph7_3 \"Rhea list of ChEBI terms representing the major species at pH 7.3.\"', 'gocheck_do_not_annotate \"Term not to be used \
+for direct annotation\"', 'gocheck_do_not_manually_annotate \"Term not to be used for direct manual annotation\"', 'goslim_agr \"AGR \
+slim\"', 'goslim_aspergillus \"Aspergillus GO slim\"', 'goslim_candida \"Candida GO slim\"', 'goslim_chembl \"ChEMBL protein targets summary\"', '\
+goslim_drosophila \"Drosophila GO slim\"', 'goslim_flybase_ribbon \"FlyBase Drosophila GO ribbon slim\"', 'goslim_generic \"Generic GO \
+slim\"', 'goslim_metagenomics \"Metagenomics GO slim\"', 'goslim_mouse \"Mouse GO slim\"', 'goslim_pir \"PIR GO slim\"', 'goslim_plant \"\
+Plant GO slim\"', 'goslim_pombe \"Fission yeast GO slim\"', 'goslim_synapse \"synapse GO slim\"', 'goslim_yeast \"Yeast GO slim\"', 'prokaryote_\
+subset \"GO subset for prokaryotes\"']",
+		synonymtypedef="['syngo_official_label \"label approved by the SynGO project\"', 'systematic_synonym \"Systematic synonym\" EXACT']",
+		typedefs="[{'id': 'ends_during', 'name': 'ends during', 'namespace': 'external', 'xref': ['RO:0002093']}, {'id': 'happens_during', 'name': '\
+happens during', 'namespace': 'external', 'xref': ['RO:0002092'], 'is_transitive': 'true', 'is_a': ['ends_during']}, {'id': 'has_\
+ontology_root_term', 'name': 'has ontology root term', 'namespace': 'external', 'xref': ['IAO:0000700'], 'is_metadata_tag': 'true', '\
+is_class_level': 'true'}, {'id': 'has_part', 'name': 'has part', 'namespace': 'external', 'xref': ['BFO:0000051'], 'is_transitive': '\
+true'}, {'id': 'negatively_regulates', 'name': 'negatively regulates', 'namespace': 'external', 'xref': ['RO:0002212'], 'is_a': ['\
+regulates']}, {'id': 'occurs_in', 'name': 'occurs in', 'namespace': 'external', 'xref': ['BFO:0000066'], 'transitive_over': ['part_\
+of']}, {'id': 'part_of', 'name': 'part of', 'namespace': 'external', 'xref': ['BFO:0000050'], 'is_transitive': 'true', 'inverse_\
+of': ['has_part']}, {'id': 'positively_regulates', 'name': 'positively regulates', 'namespace': 'external', 'xref': ['RO:0002213'], '\
+holds_over_chain': ['negatively_regulates negatively_regulates'], 'is_a': ['regulates']}, {'id': 'regulates', 'name': 'regulates', '\
+namespace': 'external', 'xref': ['RO:0002211'], 'is_transitive': 'true'}, {'id': 'starts_during', 'name': 'starts during', 'namespace': '\
+external', 'xref': ['RO:0002091']}, {'id': 'term_tracker_item', 'name': 'term tracker item', 'namespace': 'external', 'xref': ['\
+IAO:0000233'], 'is_metadata_tag': 'true', 'is_class_level': 'true'}]"
+	];
+	"GO:0005829"	[UniprotID="['P01323']",
+		def="\"The part of the cytoplasm that does not contain organelles but which does contain other particulate matter, such as protein complexes.\" [\
+GOC:hjd, GOC:jl]",
+		fillcolor="#ff7f0e",
+		fontcolor=white,
+		is_a="['GO:0005575']",
+		name=cytosol,
+		namespace=cellular_component,
+		relationship="['part_of GO:0005737']",
+		style=filled,
+		subset="['goslim_agr', 'goslim_chembl', 'goslim_drosophila', 'goslim_flybase_ribbon', 'goslim_generic', 'goslim_mouse', 'goslim_plant']",
+		xref="['NIF_Subcellular:sao101633890', 'Wikipedia:Cytosol']"];
+	"GO:0005737"	[UniprotID="['P01323']",
+		def="\"The contents of a cell excluding the plasma membrane and nucleus, but including other subcellular structures.\" [ISBN:0198547684]",
+		fillcolor="#ff7f0e",
+		fontcolor=white,
+		is_a="['GO:0005575']",
+		name=cytoplasm,
+		namespace=cellular_component,
+		property_value="['term_tracker_item \"https://github.com/geneontology/go-ontology/issues/23023\" xsd:anyURI']",
+		relationship="['part_of GO:0005622']",
+		style=filled,
+		subset="['goslim_candida', 'goslim_chembl', 'goslim_metagenomics', 'goslim_pir', 'goslim_plant', 'goslim_yeast', 'prokaryote_subset']",
+		xref="['Wikipedia:Cytoplasm']"];
+	"GO:0005829" -> "GO:0005737"	[key=part_of];
+}
