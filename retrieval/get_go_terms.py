@@ -5,6 +5,7 @@ import json
 import argparse
 import logging
 import sys
+import os
 from map_to_uniprot import process_id_file
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -15,8 +16,9 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S"
 )
-base_url = "http://rest.uniprot.org/uniprot/"
-mapping = f"{SCRIPT_DIR}/meta/go_evidence_map.csv"
+
+BASE_URL = "http://rest.uniprot.org/uniprot/"
+EVIDENCE_MAPPING = f"{SCRIPT_DIR}/meta/go_evidence_map.csv"
 
 EVIDENCE_SCORES = {
     "EXP": 1.00,  # Gold standard
@@ -44,7 +46,7 @@ def get_go_terms(uniprot_id: str) -> list[tuple]:
     :param uniprot_id: UniProt ID (e.g., "Q9Y263")
     :return: list of dicts: [{go_id, term, evidence}, ...]
     """
-    xml_url = f'{base_url}{uniprot_id}.xml'
+    xml_url = f'{BASE_URL}{uniprot_id}.xml'
     try:
         with urllib.request.urlopen(xml_url) as response:
             xml = response.read().decode('utf-8')
