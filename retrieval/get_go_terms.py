@@ -6,9 +6,12 @@ import argparse
 import logging
 import sys
 import os
+import pandas as pd
 from map_to_uniprot import process_id_file
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+SCRIPT_DIR = os.path.dirname(CURRENT_DIR)
+
 
 # Set up logging
 logging.basicConfig(
@@ -21,17 +24,23 @@ BASE_URL = "http://rest.uniprot.org/uniprot/"
 EVIDENCE_MAPPING = f"{SCRIPT_DIR}/meta/go_evidence_map.csv"
 
 EVIDENCE_SCORES = {
-    "EXP": 1.00,  # Gold standard
-    "IDA": 0.95,
-    "IPI": 0.90,
-    "IMP": 0.85,
-    "IGI": 0.85,
-    "IEP": 0.80,
-    "TAS": 0.75,
-    "IC": 0.70,
-    "ISS": 0.60,
-    "NAS": 0.50,
-    "IEA": 0.30,  # Auto-annotation; lowest confidence
+    "IDA": 5,
+    "EXP": 5,
+    "IGI": 5,
+    "IMP": 5,
+    "IPI": 5,
+    "IC":  4,
+    "TAS": 4,
+    "IBA": 4,
+    "ISO": 3,
+    "IEP": 3,
+    "RCA": 3,
+    "IGC": 3,
+    "ISS": 2,
+    "IEA": 2,
+    "NAS": 2,
+    "NR":  1,
+    "ND":  0
 }
 
 ONOTLOGIES = {
@@ -40,12 +49,8 @@ ONOTLOGIES = {
     "C": "GO:0005575"
 }
 
-def get_go_terms(uniprot_id: str) -> list[tuple]:
-    """
-    Get the GO terms (ID + description + evidence) for a UniProt ID.
-    :param uniprot_id: UniProt ID (e.g., "Q9Y263")
-    :return: list of dicts: [{go_id, term, evidence}, ...]
-    """
+def get_go_terms(uniprot_id: str, evidence_map: dict) -> list[tuple]:
+
     xml_url = f'{BASE_URL}{uniprot_id}.xml'
     try:
         with urllib.request.urlopen(xml_url) as response:
@@ -61,21 +66,19 @@ def get_go_terms(uniprot_id: str) -> list[tuple]:
         go_entries = []
         for db_ref in root.findall(f".//{namespace}dbReference[@type='GO']"):
             go_id = db_ref.get("id", "")
-            term = evidence = None
+            evidence_code = None
+
             for prop in db_ref.findall(f"{namespace}property"):
-                if prop.attrib["type"] == "category":
-                    term = prop.attrib["value"]
-                elif prop.attrib["type"] == "term":
-                    term = prop.attrib["value"]
-                elif prop.attrib["type"] == "evidence":
-                    evidence = prop.attrib["value"]
-
-            #evidence_score = EVIDENCE_SCORES.get(evidence, 0.3)
-
+                if prop.attrib["type"] == "evidence":
+                    evidence_code = prop.attrib["value"]
+                #elif prop.attrib["type"] == "term":
+                #    term = prop.attrib["value"]
+            evidence = evidence_map.get(evidence_code, "IEA")
+            evidence_score = EVIDENCE_SCORES.get(evidence, 0)
             go_entries.append((
                 go_id,
-                term,   # 'P' (Process), 'F' (Function), 'C' (Component)
-                evidence
+                #term,   # 'P' (Process), 'F' (Function), 'C' (Component)
+                evidence_score
             ))
         return go_entries
 
@@ -84,15 +87,14 @@ def get_go_terms(uniprot_id: str) -> list[tuple]:
         return []
 
 def get_go_terms_batch(uniprot_ids: list) -> dict:
-    """
-    Get the GO terms for a list of UniProt IDs
-    :param uniprot_ids: list of UniProt IDs
-    :return: dictionary: {UniProt_ID: {GO_ID: GO_description}}
-    """
-    uniprot_ids = list(set(uniprot_ids)) # Unique IDs
+
+    map_df = pd.read_csv(EVIDENCE_MAPPING, sep="\t")
+    map_dict = map_df.set_index("ECO_map")["evidence"].to_dict()
+    uniprot_ids = list(set(uniprot_ids))
     go_terms = {}
+
     for uniprot_id in uniprot_ids:
-        go_terms[uniprot_id] = get_go_terms(uniprot_id)
+        go_terms[uniprot_id] = get_go_terms(uniprot_id, map_dict)
     return go_terms
 
 def validate_uniprot_ids(uniprot_ids: list) -> dict:
@@ -139,6 +141,7 @@ def load_go_terms_dict(file_path: str) -> dict:
 
 
 def main(input_file: str, output_file: str):
+
     uniprot_ids = process_id_file(input_file)
     if not uniprot_ids:
         sys.exit(1)
@@ -156,6 +159,7 @@ def main(input_file: str, output_file: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Retrieve GO terms for UniProt IDs.")
     parser.add_argument("--file", required=True, help="Path to the file containing UniProt IDs.")
+    parser.add_argument("--evidence_map", required=True, help="Path to the ECO:evidence GO mapping")
     parser.add_argument("--output", default="go_terms.json", help="Output file for GO terms.")
     args = parser.parse_args()
 
@@ -165,6 +169,12 @@ if __name__ == "__main__":
         logging.error(f"Error during GO term retrieval: {e}")
         sys.exit(1)
 """
+map_df = pd.read_csv(EVIDENCE_MAPPING, sep="\t")
+map_dict = map_df.set_index("ECO_map")["evidence"].to_dict()
+print(map_dict)
 id_list = ["G1TTU1", "G3HXZ8","I7GSK6","P01308","P01323","P67972","Q52PU3"]
 go_terms = get_go_terms_batch(id_list)
-print(go_terms)
+for key, value in go_terms.items():
+    print(key)
+    for val in value:
+        print(val[0], val[1])
