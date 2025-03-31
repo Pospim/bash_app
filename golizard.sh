@@ -463,7 +463,8 @@ echo "--------------------------------------------------------------------"
 
 #### Step 6: Get GO terms ####
 ##########################################################################
-GO_TERMS="$OUTPUT_DIR/go_terms.json"
+GO_DICT="$OUTPUT_DIR/go_terms.json"
+GO_CSV="$OUTPUT_DIR/go_terms.csv"
 
 # === Preliminary Check ===
 if [[ ( ! -f "$ELM_RESULTS" || ! -s "$ELM_RESULTS" ) && ( ! -f "$COMBINED_RESULTS" || ! -s "$COMBINED_RESULTS" ) ]]; then
@@ -476,28 +477,31 @@ if [[ "$ELM_RUN" == false ]]; then
     echo "[INFO] Fetching GO terms for Protein IDs..."
     python "$GO_SCRIPT" \
         --file "$COMBINED_RESULTS" \
-        --output "$GO_TERMS" || exit 1
+        --output_json "$GO_DICT" \
+        --output_csv "$GO_CSV" || exit 1
 
 elif [[ "$ELM_RUN" == true && -s "$COMBINED_RESULTS" ]]; then # FS results copied to COMBINED_RESULTS
         echo "[INFO] Fetching GO terms for FoldSeek IDs (ELM already mapped)..."
-        FS_GO_TERMS="$OUTPUT_DIR/foldseek_go_terms.json"
+        FS_GO_DICT="$OUTPUT_DIR/fs_go_terms.json"
+        FS_GO_CSV="$OUTPUT_DIRP/fs_go_terms.csv"
 
         python "$GO_SCRIPT" \
             --file "$COMBINED_RESULTS" \
-            --output "$FS_GO_TERMS" || exit 1
+            --output_json "$FS_GO_DICT" \
+            --output_csv "$FS_GO_CSV" || exit 1
         python "$MERGE_GO_SCRIPT" \
             --elm "$ELM_RESULTS" \
             --fs "$FS_GO_TERMS" \
             --output "$GO_TERMS"
 else
-    cp "$ELM_RESULTS" "$GO_TERMS"
+    cp "$ELM_RESULTS" "$GO_DICT"
 fi
 
-if [[ ! -f "$GO_TERMS" || ! -s "$GO_TERMS" ]]; then
+if [[ ! -f "$GO_DICT" || ! -s "$GO_DICT" ]]; then
     echo "[ERROR] GO terms not found or file is empty."
     exit 1
 fi
-echo "[INFO] GO terms saved => $GO_TERMS"
+echo "[INFO] GO terms saved => $GO_DICT"
 
 #### Step 7: Graph GO terms ####
 ##########################################################################
@@ -509,7 +513,7 @@ DOTFILES_DIR="$OUTPUT_DIR/dotfiles"
 mkdir -p "$DOTFILES_DIR"
 
 python "$GRAPH_SCRIPT" \
-    --uniprot_to_go "$GO_TERMS" \
+    --uniprot_to_go "$GO_DICT" \
     --go_graph "$GO_OBO" \
     --pivot GO:0003674 GO:0008150 GO:0005575 \
     --output_dir "$DOTFILES_DIR" || exit 1

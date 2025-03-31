@@ -43,12 +43,6 @@ EVIDENCE_SCORES = {
     "ND":  0
 }
 
-ONOTLOGIES = {
-    "P": "GO:0008150",
-    "F": "GO:0003674",
-    "C": "GO:0005575"
-}
-
 def get_go_terms(uniprot_id: str, evidence_map: dict) -> list[tuple]:
 
     xml_url = f'{BASE_URL}{uniprot_id}.xml'
@@ -86,9 +80,9 @@ def get_go_terms(uniprot_id: str, evidence_map: dict) -> list[tuple]:
         logging.error(f"Failed to parse GO terms for {uniprot_id}: {e}")
         return []
 
-def get_go_terms_batch(uniprot_ids: list) -> dict:
+def get_go_terms_batch(uniprot_ids: list, evidence_map: str = EVIDENCE_MAPPING) -> dict:
 
-    map_df = pd.read_csv(EVIDENCE_MAPPING, sep="\t")
+    map_df = pd.read_csv(evidence_map, sep="\t")
     map_dict = map_df.set_index("ECO_map")["evidence"].to_dict()
     uniprot_ids = list(set(uniprot_ids))
     go_terms = {}
@@ -125,22 +119,34 @@ def load_uniprot_ids(file_path: str) -> list:
     with open (file_path, "r") as f:
         return [line.strip() for line in f if line.strip()]
 
-def save_go_terms(go_terms: dict, output_file: str):
+def save_go_terms(go_terms: dict, output_json: str, output_csv: str):
     """
     Save GO terms to a JSON file.
 
     :param go_terms: Dictionary of GO terms.
     :param output_file: Output file path.
     """
-    with open(output_file, "w") as f:
-        json.dump(go_terms, f, indent=4)
+    try:
+        with open(output_json, "w") as f:
+            json.dump(go_terms, f, indent=4)
+    except Exception as E:
+        logging.error(f"Failed to save GO terms to json: {e}")
+        sys.exit(1)
+    try:
+        with open(output_csv, "w") as f:
+            for _, value in go_terms.items():
+                f.write("GO_term\tscore\n")
+                for val in value:
+                    f.write(f"{val[0]}\t{val[1]}\n")
+    except Exception as e:
+        logging.error(f"Failed to save GO terms to csv: {e}")
+        sys.exit(1)
 
 def load_go_terms_dict(file_path: str) -> dict:
     with open(file_path, "r") as f:
         return json.load(f)
 
-
-def main(input_file: str, output_file: str):
+def main(input_file: str, output_json: str, output_csv: str):
 
     uniprot_ids = process_id_file(input_file)
     if not uniprot_ids:
@@ -149,32 +155,23 @@ def main(input_file: str, output_file: str):
     go_terms = get_go_terms_batch(uniprot_ids)
 
     if go_terms:
-        save_go_terms(go_terms, output_file)
+        save_go_terms(go_terms, output_json, output_csv)
         #logging.info(f"GO terms saved to '{output_file}'.")
     else:
         logging.warning("No GO terms found for the provided UniProt IDs.")
         sys.exit(1)
 
-"""
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Retrieve GO terms for UniProt IDs.")
     parser.add_argument("--file", required=True, help="Path to the file containing UniProt IDs.")
-    parser.add_argument("--evidence_map", required=True, help="Path to the ECO:evidence GO mapping")
-    parser.add_argument("--output", default="go_terms.json", help="Output file for GO terms.")
+    #parser.add_argument("--evidence_map", required=True, help="Path to the ECO:evidence GO mapping")
+    parser.add_argument("--output_json", default="go_terms.json", help="Output file for Uniprot:GO terms dict.")
+    parser.add_argument("--output_csv", default="go_terms.csv", help="Output file for GO terms - evidence score.")
     args = parser.parse_args()
 
     try:
-        main(args.file, args.output)
+        main(args.file, args.output_json, args.output_csv)
     except Exception as e:
         logging.error(f"Error during GO term retrieval: {e}")
         sys.exit(1)
-"""
-map_df = pd.read_csv(EVIDENCE_MAPPING, sep="\t")
-map_dict = map_df.set_index("ECO_map")["evidence"].to_dict()
-print(map_dict)
-id_list = ["G1TTU1", "G3HXZ8","I7GSK6","P01308","P01323","P67972","Q52PU3"]
-go_terms = get_go_terms_batch(id_list)
-for key, value in go_terms.items():
-    print(key)
-    for val in value:
-        print(val[0], val[1])
