@@ -222,13 +222,6 @@ if __name__ == "__main__":
         logging.info("Using default database 'afdb50'.")
         valid_dbs = ["afdb50"]
 
-    output_dir = os.path.dirname(args.output_file)
-    try:
-        os.makedirs(output_dir, exist_ok=True)
-    except Exception as e:
-        print(f"[ERROR] Failed to create output directory: {output_dir}\n{e}", file=sys.stderr)
-        sys.exit(1)
-
     pdb_data = get_esmfold_pdb(sequence)
     pdb_file = "converted_by_esmfold.pdb"
 

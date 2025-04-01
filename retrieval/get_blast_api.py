@@ -252,13 +252,6 @@ if __name__ == "__main__":
         logging.info("Using default database 'swissprot'.")
         valid_dbs = ["swissprot"]
 
-    output_dir = os.path.dirname(args.output_file)
-    try:
-        os.makedirs(output_dir, exist_ok=True)
-    except Exception as e:
-        print(f"[ERROR] Failed to create output directory: {output_dir}\n{e}", file=sys.stderr)
-        sys.exit(1)
-
     timestamp = int(time.time())
     all_results = []
     for db in valid_dbs:

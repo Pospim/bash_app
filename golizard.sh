@@ -371,15 +371,19 @@ if [[ -z "$BLAST_RESULTS" && -z "$COMBINED_RESULTS" ]]; then
     if [[ ! -s "$BLAST_RESULTS" ]]; then
         echo "[WARNING] No BLAST hits found. Running ELM domain analysis..."
         echo "--------------------------------------------------------------------"
-        ELM_RESULTS="$OUTPUT_DIR/elm_go_terms.json"
+        ELM_JSON="$OUTPUT_DIR/elm_go_terms.json"
+        ELM_CSV="$OUTPUT_DIR/elm_go_terms.csv"
+
         python "$ELM_SCRIPT" \
             --fasta "$INPUT_FILE" \
             --go_map "$ELM_TO_GO" \
-            --output_file "$ELM_RESULTS" || exit 1
+            --output_json "$ELM_JSON" \
+            --output_csv "$ELM_CSV" || exit 1
 
-        if [[ -f "$ELM_RESULTS" && -s "$ELM_RESULTS" ]]; then
+        if [[ -f "$ELM_CSV" && -s "$ELM_CSV" ]]; then
             ELM_RUN=true
-            echo "[INFO] ELM results saved => $ELM_RESULTS"
+            echo "[INFO] ELM dict results saved => $ELM_JSON"
+            echo "[INFO] ELM table results saved => $ELM_CSV"
             echo "--------------------------------------------------------------------"
         fi
     else
@@ -467,7 +471,7 @@ GO_DICT="$OUTPUT_DIR/go_terms.json"
 GO_CSV="$OUTPUT_DIR/go_terms.csv"
 
 # === Preliminary Check ===
-if [[ ( ! -f "$ELM_RESULTS" || ! -s "$ELM_RESULTS" ) && ( ! -f "$COMBINED_RESULTS" || ! -s "$COMBINED_RESULTS" ) ]]; then
+if [[ ( ! -f "$ELM_JSON" || ! -s "$ELM_JSON" ) && ( ! -f "$COMBINED_RESULTS" || ! -s "$COMBINED_RESULTS" ) ]]; then
     echo "[ERROR] Neither ELM, BLAST nor FoldSeek results exist or are non-empty."
     echo "Exiting..."
     exit 1

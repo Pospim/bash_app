@@ -181,7 +181,6 @@ def process_id_file(input_file: str) -> list:
 
         if uniprot_ids:
             logging.info(f"{len(uniprot_ids)} IDs successfully mapped to UniProt IDs")
-            #print(uniprot_ids)
             return uniprot_ids
 
         else:

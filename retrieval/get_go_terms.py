@@ -9,17 +9,8 @@ import os
 import pandas as pd
 from map_to_uniprot import process_id_file
 
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-SCRIPT_DIR = os.path.dirname(CURRENT_DIR)
-
-
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
-
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SCRIPT_DIR = os.path.dirname(BASE_DIR)
 BASE_URL = "http://rest.uniprot.org/uniprot/"
 EVIDENCE_MAPPING = f"{SCRIPT_DIR}/meta/go_evidence_map.csv"
 
@@ -129,15 +120,17 @@ def save_go_terms(go_terms: dict, output_json: str, output_csv: str):
     try:
         with open(output_json, "w") as f:
             json.dump(go_terms, f, indent=4)
+
     except Exception as E:
         logging.error(f"Failed to save GO terms to json: {e}")
         sys.exit(1)
+
     try:
         with open(output_csv, "w") as f:
             for _, value in go_terms.items():
-                f.write("GO_term\tscore\n")
                 for val in value:
                     f.write(f"{val[0]}\t{val[1]}\n")
+
     except Exception as e:
         logging.error(f"Failed to save GO terms to csv: {e}")
         sys.exit(1)
@@ -165,7 +158,6 @@ def main(input_file: str, output_json: str, output_csv: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Retrieve GO terms for UniProt IDs.")
     parser.add_argument("--file", required=True, help="Path to the file containing UniProt IDs.")
-    #parser.add_argument("--evidence_map", required=True, help="Path to the ECO:evidence GO mapping")
     parser.add_argument("--output_json", default="go_terms.json", help="Output file for Uniprot:GO terms dict.")
     parser.add_argument("--output_csv", default="go_terms.csv", help="Output file for GO terms - evidence score.")
     args = parser.parse_args()

@@ -32,10 +32,10 @@ def format_time(seconds):
     return f"{mins}m:{sec:02d}s"
 
 ELM_API_URL = "http://elm.eu.org/start_search/"
-MAX_SEQUENCE_LENGTH = 2000              # ELM GET endpoint limit
+MAX_SEQUENCE_LENGTH = 2000     # ELM GET endpoint limit
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ELM_GO_FILE = Path(f"{BASE_DIR}/elm_goterms.tsv")
-OUT_FILE = "elm_to_go.json"
+SCRIPT_DIR = os.path.dirname(BASE_DIR)
+ELM_GO_FILE = f"{SCRIPT_DIR}/meta/elm_go_terms.tsv"
 
 # high confidence classes
 ALLOWED_CLASSES = {
@@ -50,10 +50,11 @@ def load_go_mapping(go_terms_file=ELM_GO_FILE):
     Loads ELM -> GO mappings from a TSV file.
 
     Returns:
-        dict: { ELM_class: [GO:terms] }
+        dict: { ELM_class: [GO:terms, evidence_score==1] } # ELM GO are not confident
     """
     #logging.info(f"Loading GO terms from: {go_terms_file}")
     go_path = Path(go_terms_file)
+
     if go_path.is_file():
         df = pd.read_csv(go_terms_file, sep='\t')
 
@@ -101,7 +102,7 @@ def submit_elm(sequence, max_attempts=5, delay=60):
 
     raise RuntimeError("ELM search failed after all retry attempts.")
 
-def parse_elm_tsv(tsv_text, go_mapping):
+def parse_elm_tsv(tsv_text):
     """
     Parses the TSV output from ELM and filters motif hits.
     """
@@ -127,43 +128,54 @@ def parse_elm_tsv(tsv_text, go_mapping):
 
         if motif["is_filtered"]:
             continue  # Skip motifs filtered by ELM
-
         elm_id = motif["elm_identifier"]
 
         if elm_id.split('_')[0] in ALLOWED_CLASSES:
             motifs.add(elm_id)
 
+    return motifs
+
+def get_elm_to_go(motifs: set, go_mapping: dict):
+
     elm_to_go = {}
 
     for elm_id in motifs:
         go_terms = go_mapping.get(elm_id, [])
-        elm_to_go[elm_id] = go_terms
+        if go_terms:
+            terms_with_score = []
+
+            for term in go_terms:
+                term_with_score = (term, 1)
+                terms_with_score.append(term_with_score)
+
+            elm_to_go[elm_id] = terms_with_score
 
     logging.info(f"Mapped {len(elm_to_go)} ELM motifs to GO terms.")
     return  elm_to_go
 
-def save_go_mapping(elm_to_go, output_file):
-    """
-    Saves the ELM -> GO terms mapping to a JSON file.
-
-    Args:
-        elm_to_go (dict): Mapping {ELM_class: [GO_terms]}.
-        output_file (str): Path to the JSON output file.
-    """
+def save_go_mapping(elm_to_go, output_json, output_csv):
     try:
-        with open(output_file, 'w') as f:
+        with open(output_json, "w") as f:
             json.dump(elm_to_go, f, indent=4)
 
-        logging.info(f"Saved GO mapping to {output_file}")
+    except Exception as E:
+        logging.error(f"Failed to save GO terms to json: {e}")
+        sys.exit(1)
 
-    except IOError as e:
-        logging.error(f"Failed to write GO mapping to {output_file}: {e}")
+    try:
+        with open(output_csv, "w") as f:
+            for _, value in elm_to_go.items():
+                for val in value:
+                    f.write(f"{val[0]}\t{val[1]}\n")
+    except Exception as e:
+        logging.error(f"Failed to save GO terms to csv: {e}")
         sys.exit(1)
 
 def main():
     parser = argparse.ArgumentParser(description="Run ELM motif search on a FASTA sequence.")
     parser.add_argument("--fasta", required=True, help="Path to input FASTA file.")
-    parser.add_argument("--output_file", default=OUT_FILE, help="Path to save ELM to GO mapping hits.")
+    parser.add_argument("--output_json", default="go_terms.json", help="Output file for ELM:GO terms dict.")
+    parser.add_argument("--output_csv", default="go_terms.csv", help="Output file for GO terms - evidence score.")
     parser.add_argument("--go_map", default=ELM_GO_FILE, help="Path to elm to GO mapping")
     parser.add_argument("--max_attempts", type=int, default=5, help="Max attempts for ELM submission (default=5).")
     parser.add_argument("--delay", type=int, default=60, help="Delay in seconds between retries (default=60).")
@@ -184,27 +196,37 @@ def main():
             delay=args.delay
         )
         go_map = load_go_mapping(args.go_map)
+
         if not go_map:
             return []
+    except Exception as e:
+        logging.error(f"Failed to query ELM database: {e}")
+        return []
 
-        elm_to_go = parse_elm_tsv(
-            tsv_text=tsv_res,
-            go_mapping=go_map,
-        )
+    try:
+        motifs = parse_elm_tsv(tsv_text=tsv_res)
+        if not motifs:
+            logging.info(f"No ELM results found")
+            return []
+
+        elm_to_go = get_elm_to_go(motifs, go_map)
+
         if not (elm_to_go and all(elm_to_go.values())):
             logging.info(f"No ELM results found")
-            return
-        output_dir = os.path.dirname(args.output_file)
-        try:
-            os.makedirs(output_dir, exist_ok=True)
-        except Exception as e:
-            print(f"[ERROR] Failed to create output directory: {output_dir}\n{e}", file=sys.stderr)
-            sys.exit(1)
-
-        save_go_mapping(elm_to_go=elm_to_go, output_file=args.output_file)
+            return []
+        print(f"ELM_TO_GO\n{elm_to_go}")
 
     except Exception as e:
-        logging.error(f"Error quering ELM: {e}")
+        logging.error(f"Failed to parse query results: {e}")
+        return []
+
+    try:
+        save_go_mapping(elm_to_go=elm_to_go,
+                        output_json=args.output_json,
+                        output_csv=args.output_csv
+        )
+    except Exception as e:
+        logging.error(f"Failed to save ELM results : {e}")
         sys.exit(1)
 
     elapsed = int(time.time() - timestamp)
