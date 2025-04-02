@@ -12,6 +12,10 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S"
 )
 
+BASE_URL = "http://revigo.irb.hr/"
+HEADERS = {"Content-Type": "application/x-www-form-urlencoded"}
+
+# Maps numeric IDs to readable names:
 NAMESPACE = {
     '1': 'Biological process',
     '2': 'Cellular component',
@@ -22,9 +26,13 @@ def format_time(seconds):
     mins, sec = divmod(seconds, 60)
     return f"{mins}m:{sec:02d}s"
 
-BASE_URL = "http://revigo.irb.hr/"
-
-def load_csv(file_path):
+def load_csv(file_path: str) -> str:
+    """
+    Reads a local TSV file with two columns: (GO_ID, Score).
+    Returns a space-separated string, e.g.:
+      'GO:0008150 0.0002\\nGO:0000003 0.0453\\n...'
+    This string is suitable for the 'goList' parameter in REVIGO.
+    """
     path = Path(file_path)
     if not path.is_file():
         logging.error(f"File does not exist: {file_path}")
@@ -33,23 +41,32 @@ def load_csv(file_path):
     try:
         terms_with_score = pd.read_csv(file_path, sep='\t')
         if terms_with_score.empty:
+            logging.error(f"GO list file is empty: {file_path}")
             return []
 
         if terms_with_score.shape[1] != 2:
-            logging.error(f"GO - score file must have two columns: {file_path}\n{e}")
+            logging.error("GO - score file must have exactly two columns (GO Term, Score).")
             sys.exit(1)
 
     except Exception as e:
         logging.error(f"Failed to load GO - score file: {file_path}\n{e}")
         sys.exit(1)
 
-    return terms_with_score
+    # Return a space-separated string for REVIGO
+    return terms_with_score.to_csv(sep=" ", index=False, header=False)
 
-def submit_revigo(terms_with_score: pd.DataFrame, cutoff:str ='0.7',
-                  val_type:str ='Higher', species:str ='0',
-                  measure:str ='SIMREL', max_attempts:int =5, delay:int =60):
+def submit_revigo(terms_with_score: str,
+                  cutoff:str = '0.7',
+                  val_type:str = 'Higher',
+                  species:str = '0',
+                  measure:str = 'SIMREL',
+                  max_attempts:int = 5,
+                  delay:int = 60) -> str:
+    """
+    Submits a job to REVIGO with retry logic, returning the job ID upon success.
+    """
     url = f"{BASE_URL}StartJob"
-    if terms_with_score.empty:
+    if not terms_with_score.strip():
         logging.error(f"GO - score file failed to load")
         sys.exit(1)
 
@@ -62,14 +79,18 @@ def submit_revigo(terms_with_score: pd.DataFrame, cutoff:str ='0.7',
     for attempt in range(1, max_attempts+1):
         try:
             logging.info(f"Submitting REVIGO job (Attempt {attempt}/{max_attempts})...")
-            r = requests.post(url, data=payload)
+            r = requests.post(url, headers=HEADERS, data=payload, timeout=30)
             r.raise_for_status()
 
-            job_id = r.json().get('jobid')
+            job_data = r.json()
+            job_id = job_data.get('jobid', -1)
 
-            if job_id:
+            if job_id != -1:
                 logging.info(f"REVIGO job submitted successfully. Job ID: {job_id}")
-                return job_id
+                return str(job_id)
+            else:
+                msg = job_data.get('message', "unknown error from REVIGO")
+                raise RuntimeError(f"REVIGO error: {msg}")
 
         except requests.RequestException as e:
             logging.error(f"POST request failed on attempt {attempt}: {e}")
@@ -79,70 +100,104 @@ def submit_revigo(terms_with_score: pd.DataFrame, cutoff:str ='0.7',
                 time.sleep(delay)
             else:
                 raise RuntimeError("ELM search failed after maximum attempts.")
-    else:
-        raise RuntimeError("ELM search failed after all retry attempts.")
 
-def get_results(job_id: str):
+    raise RuntimeError("ELM search failed after all retry attempts.")
+
+def wait_for_completion(job_id: str, max_wait: int = 60):
+    """
+    Polls the jstatus endpoint until the job is complete or we hit max_wait seconds.
+    """
     url = f"{BASE_URL}QueryJob"
     params = {'jobid': job_id, 'type': 'jstatus'}
 
-    running = 1
-    try:
-        while running != 0:
-            logging.info(f"Checking REVIGO job status...")
-
-            r = requests.get(url=url, params=params)
+    logging.info(f"Waiting for REVIGO job {job_id} to complete (timeout={max_wait}s)...")
+    for _ in range(max_wait):
+        try:
+            r = requests.get(url, params=params, timeout=10)
             r.raise_for_status()
-            response = r.json()
-            running = response.get('running')
+            status = r.json()
 
-            if running != 0:
-                logging.info(f"Progress: {response.get('message')}")
+            if status.get('running') == 0:
+                logging.info(f"Job completed with status: {status}")
+                return
             else:
-                logging.info(f"Job completed with status: {response}")
+                msg = status.get('message', "No progress message.")
+                logging.info(f"Progress: {msg}")
+        except requests.RequestException as e:
+            logging.error(f"Failed to query REVIGO job status: {e}")
 
-            time.sleep(1)
+        time.sleep(1)
 
-        return response
+    raise TimeoutError(f"REVIGO job {job_id} did not complete within {max_wait} seconds.")
 
-    except Exception as e:
-        logging.error(f"Failed to get results from ReviGO: {e}")
-        sys.exit(1)
-
-def parse_results(job_id: str, namespaces: list[str], result_types: list[str]) -> list[dict]:
+def parse_results(job_id: str,
+                  namespaces: list[str],
+                  result_types: list[str]) -> dict:
+    """
+    Fetches the REVIGO results for each requested namespace & output type.
+    Returns a nested dictionary:
+      {
+        '1': {'jTable': "...", 'jScatterplot': "..."},
+        '2': {...},
+        ...
+      }
+    """
     url = f"{BASE_URL}QueryJob"
-    results = []
+    results = {}
 
-    try:
-        for ontology in namespaces:
-            result = {}
-            for type in result_types:
-                logging.info(f"Fetching REVIGO results (ontology={NAMESPACE[ontology]}, type={type})...")
-                params = {'jobid': job_id,
-                          'namespace': ontology,
-                          'type': type
-                }
-                r = requests.get(url=url, params=params)
+    time.sleep(5)
+
+    for ns_id in namespaces:
+        ontology = NAMESPACE.get(ns_id)
+        ns_results = {}
+        for out_type in result_types:
+            logging.info(f"Fetching REVIGO results (ontology={ontology}, type={out_type})...")
+            params = {'jobid': job_id,
+                      'namespace': ns_id,
+                      'type': out_type
+            }
+            try:
+                r = requests.get(url=url, params=params, timeout=60)
                 r.raise_for_status()
-                result[type] = r.text
 
-            results.append(result)
-        return results
+                if 'The Job has an errors, no data available' in r.text.lower():
+                    logging.warning(f"REVIGO returned error for {ontology}/{out_type}: {r.text.strip()}")
+                    continue
+                else:
+                    ns_results[out_type] = r.text
+            except requests.RequestException as e:
+                logging.error(f"Failed to fetch results for {ontology}/{out_type}: {e}")
+                continue
 
-    except requests.RequestException as e:
-        logging.error(f"Failed to fetch REVIGO results: {e}")
-        sys.exit(1)
+        if ns_results:
+            results[ns_id] = ns_results
 
-ontologies=['1', '2', '3']
-result_types = ['Table', 'jScatterplot']
-file = "/home/pospim/Desktop/work/GOLizard/bash_app/tmp/go_terms.csv"
-terms = load_csv(file_path=file)
+    return results
 
-id = submit_revigo(terms_with_score=terms)
-print(id)
 
-ret_val = get_results(id)
-print(ret_val)
+if __name__ == "__main__":
+    # Example usage with a local file of GO Terms
+    # Change 'file' to your actual path with two columns (GO term, Score):
+    file_path = "/home/pospim/Desktop/work/GOLizard/bash_app/tmp/go_terms.csv"
+    ontologies = ['1', '2', '3']
+    result_types = ['jTable', 'jScatterplot']
 
-results = parse_results(id, ontologies, result_types=result_types)
-print(results)
+    # 1) Load the local GO data
+    terms_str = load_csv(file_path=file_path)
+    logging.info(f"Preview of GO terms:\n{terms_str[:200]}...")  # Show a small sample
+
+    # 2) Submit job
+    job_id = submit_revigo(terms_with_score=terms_str)
+    logging.info(f"Submitted job ID: {job_id}")
+
+    # 3) Wait for completion
+    wait_for_completion(job_id, max_wait=120)
+
+    # 4) Fetch results
+    results_dict = parse_results(job_id, ontologies, result_types)
+    logging.info("Fetched results from REVIGO.")
+
+    # Example: print the jTable for Biological Process (namespace '1')
+    if results_dict:
+        bp_results = results_dict['1'].get('jTable')
+    logging.info(f"Biological Process jTable:\n{bp_results}")
