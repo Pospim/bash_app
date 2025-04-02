@@ -18,7 +18,6 @@ import tarfile
 import requests
 import pandas as pd
 import logging
-import os
 import sys
 from io import BytesIO
 from check_input import get_seq
