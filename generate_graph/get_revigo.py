@@ -93,27 +93,48 @@ def get_results(job_id: str):
 
             r = requests.get(url=url, params=params)
             r.raise_for_status()
-            running = r.json().get('running')
+            response = r.json()
+            running = response.get('running')
 
             if running != 0:
-                logging.info(f"Progress: {r.json().get('message')}")
+                logging.info(f"Progress: {response.get('message')}")
+            else:
+                logging.info(f"Job completed with status: {response}")
 
             time.sleep(1)
 
-        return True
+        return response
 
     except Exception as e:
         logging.error(f"Failed to get results from ReviGO: {e}")
         sys.exit(1)
 
-def parse_results(job_id: str, namespace: str ):
+def parse_results(job_id: str, namespaces: list[str], result_types: list[str]) -> list[dict]:
     url = f"{BASE_URL}QueryJob"
+    results = []
 
+    try:
+        for ontology in namespaces:
+            result = {}
+            for type in result_types:
+                logging.info(f"Fetching REVIGO results (ontology={NAMESPACE[ontology]}, type={type})...")
+                params = {'jobid': job_id,
+                          'namespace': ontology,
+                          'type': type
+                }
+                r = requests.get(url=url, params=params)
+                r.raise_for_status()
+                result[type] = r.text
 
+            results.append(result)
+        return results
 
+    except requests.RequestException as e:
+        logging.error(f"Failed to fetch REVIGO results: {e}")
+        sys.exit(1)
 
-
-
+ontologies=['1', '2', '3']
+result_types = ['Table', 'jScatterplot']
 file = "/home/pospim/Desktop/work/GOLizard/bash_app/tmp/go_terms.csv"
 terms = load_csv(file_path=file)
 
@@ -122,3 +143,6 @@ print(id)
 
 ret_val = get_results(id)
 print(ret_val)
+
+results = parse_results(id, ontologies, result_types=result_types)
+print(results)
