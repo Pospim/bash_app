@@ -119,10 +119,12 @@ def wait_for_completion(job_id: str, max_wait: int = 60):
 
             if status.get('running') == 0:
                 logging.info(f"Job completed with status: {status}")
+                results_link = f"{BASE_URL}/Results?jobid={job_id}"
+                print(f"LINK: {results_link}")
                 return
-            else:
-                msg = status.get('message', "No progress message.")
-                logging.info(f"Progress: {msg}")
+            #else:
+                #msg = status.get('message', "No progress message.")
+                #logging.info(f"Progress: {msg}")
         except requests.RequestException as e:
             logging.error(f"Failed to query REVIGO job status: {e}")
 
