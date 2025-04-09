@@ -217,7 +217,7 @@ if __name__ == "__main__":
     valid_dbs = [db for db in args.dbs if db in DBS]
 
     if not valid_dbs:
-        logging.error(f"Invalid databases. Available options are: {', '.join(DBS)}.")
+        logging.warning(f"Invalid databases. Available options are: {', '.join(DBS)}.")
         logging.info("Using default database 'afdb50'.")
         valid_dbs = ["afdb50"]
 

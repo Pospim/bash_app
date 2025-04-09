@@ -18,10 +18,11 @@ HEADERS = {"Content-Type": "application/x-www-form-urlencoded"}
 
 # Maps numeric IDs to readable names:
 NAMESPACE = {
-    '1': 'Biological process',
-    '2': 'Cellular component',
-    '3': 'Molecular function'
+    '1': 'biological_process',
+    '2': 'cellular_component',
+    '3': 'molecular_function'
 }
+RESULT_TYPES = ["jTable", "jScatterplot", "jCytoscape"]
 
 def format_time(seconds):
     mins, sec = divmod(seconds, 60)
@@ -104,7 +105,7 @@ def submit_revigo(terms_with_score: str,
 
     raise RuntimeError("ELM search failed after all retry attempts.")
 
-def wait_for_completion(job_id: str, max_wait: int = 60):
+def wait_for_completion(job_id: str, output_dir:str, max_wait: int = 60):
     """
     Polls the jstatus endpoint until the job is complete or we hit max_wait seconds.
     """
@@ -121,7 +122,14 @@ def wait_for_completion(job_id: str, max_wait: int = 60):
             if status.get('running') == 0:
                 logging.info(f"Job completed with status: {status}")
                 results_link = f"{BASE_URL}/Results?jobid={job_id}"
-                print(f"LINK: {results_link}")
+                out_path = Path(output_dir) / "revigo_link.txt"
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(out_path, 'w') as f:
+                    f.write(results_link)
+                print("----------------------------------------------------------")
+                print(f"RESULTS: {results_link}")
+                print("----------------------------------------------------------")
+
                 return
             #else:
                 #msg = status.get('message', "No progress message.")
@@ -153,7 +161,6 @@ def parse_results(job_id: str,
     for ns_id in namespaces:
         ontology = NAMESPACE.get(ns_id)
         for out_type in result_types:
-            logging.info(f"Fetching REVIGO results (ontology={ontology}, type={out_type})...")
             params = {'jobid': job_id,
                       'namespace': ns_id,
                       'type': out_type
@@ -166,22 +173,24 @@ def parse_results(job_id: str,
                     logging.warning(f"REVIGO returned error for {ontology}/{out_type}: {r.text.strip()}")
                     continue
                 else:
-                    out_path = Path(output_dir) / ontology / f"{out_type}.json"
+                    out_path = Path(output_dir) / ontology / f"{out_type}."
                     out_path.parent.mkdir(parents=True, exist_ok=True)
 
                     with open(out_path, 'w') as f:
                         f.write(r.text)
-
+                    #logging.info(f"Saved {out_path}")
             except requests.RequestException as e:
                 logging.error(f"Failed to fetch results for {ontology}/{out_type}: {e}")
                 continue
+
 
 def main():
     parser = argparse.ArgumentParser(description="Runs REVIGO for given GO : Score list.")
     parser.add_argument("--go_terms", required=True, help="Path to input GO_terms file.")
     parser.add_argument("--output_dir", default=f"{BASE_DIR}/results", help=f"Output dir for all Ontology sub-directories default={BASE_DIR}/results).")
+    parser.add_argument("--result_type",nargs='+',default=RESULT_TYPES,help="One or more REVIGO result types.")
     parser.add_argument("--max_attempts", type=int, default=5, help="Max attempts for REVIGO submission (default=5).")
-    parser.add_argument("--max_wait", type=int, default=60, help="Max wait time for REVIGO submission (default=60).")
+    parser.add_argument("--max_wait", type=int, default=120, help="Max wait time for REVIGO submission (default=120).")
     parser.add_argument("--cutoff", type=float, default=0.7, help="Cutoff for REVIGO algorithm (default=0.7).")
     #parser.add_argument("--delay", type=int, default=60, help="Delay in seconds between retries (default=60).")
     # TODO List of types + ontologies
@@ -189,48 +198,35 @@ def main():
     args = parser.parse_args()
     timestamp = int(time.time())
 
-    ontologies =
-    result_types =
+    ontologies = ontologies = ['1', '2', '3']
+    result_types = [result for result in args.result_type if result in RESULT_TYPES]
+
+    if not result_types:
+        logging.warning(f"Invalid REVIGO result types. Available options are: {', '.join(RESULT_TYPES)}.")
+        logging.info(f"Using default {', '.join(RESULT_TYPES)}.")
+        result_types = RESULT_TYPES
+
     try:
         # 1) Load the local GO data
         terms_str = load_csv(file_path=args.go_terms)
 
         # 2) Submit job
         job_id = submit_revigo(terms_with_score=terms_str)
-        logging.info(f"Submitted job ID: {job_id}")
 
         # 3) Wait for completion
-        wait_for_completion(job_id, max_wait=120)
+        wait_for_completion(job_id, output_dir=args.output_dir, max_wait=args.max_wait)
 
         # 4) Fetch results
         parse_results(job_id, ontologies, result_types, output_dir=args.output_dir)
+        logging.info(f"Saved REVIGO results to {args.output_dir}")
 
         elapsed = int(time.time() - timestamp)
         logging.info(f"Elapsed time: {format_time(elapsed)}")
 
+    except Exception as e:
+        logging.error(f"Error getting REVIGO results")
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     main()
-
-
-
-
-if __name__ == "__main__":
-    # Example usage with a local file of GO Terms
-    # Change 'file' to your actual path with two columns (GO term, Score):
-    file_path = "/home/pospim/Desktop/work/GOLizard/bash_app/tmp/go_terms.csv"
-    ontologies = ['1', '2', '3']
-    result_types = ['jTable', 'jScatterplot']
-
-    # 1) Load the local GO data
-    terms_str = load_csv(file_path=file_path)
-    logging.info(f"Preview of GO terms:\n{terms_str[:200]}...")  # Show a small sample
-
-    # 2) Submit job
-    job_id = submit_revigo(terms_with_score=terms_str)
-    logging.info(f"Submitted job ID: {job_id}")
-
-    # 3) Wait for completion
-    wait_for_completion(job_id, max_wait=120)
-
-    # 4) Fetch results
-    parse_results(job_id, ontologies, result_types)
