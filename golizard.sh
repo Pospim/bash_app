@@ -13,7 +13,7 @@ ELM_SCRIPT="$SCRIPT_DIR/retrieval/get_elm.py"
 MERGE_ID_SCRIPT="$SCRIPT_DIR/retrieval/merge_ids.py"
 GO_SCRIPT="$SCRIPT_DIR/retrieval/get_go_terms.py"
 MERGE_GO_SCRIPT="$SCRIPT_DIR/retrieval/merge_go.py"
-GRAPH_SCRIPT="$SCRIPT_DIR/generate_graph/golizard.py"
+REVIGO_SCRIPT="$SCRIPT_DIR/generate_results/get_revigo.py"
 
 GO_OBO="$SCRIPT_DIR/meta/go-basic.obo"
 ELM_TO_GO="$SCRIPT_DIR/retrieval/elm_goterms.tsv"
@@ -513,15 +513,13 @@ echo "[INFO] GO terms saved => $GO_DICT"
 echo "--------------------------------------------------------------------"
 echo "[INFO] Creating GO graph using GOLizzard..."
 
-DOTFILES_DIR="$OUTPUT_DIR/dotfiles"
-mkdir -p "$DOTFILES_DIR"
-
-python "$GRAPH_SCRIPT" \
+python "$REVIGO_SCRIPT" \
     --uniprot_to_go "$GO_DICT" \
     --go_graph "$GO_OBO" \
-    --pivot GO:0003674 GO:0008150 GO:0005575 \
-    --output_dir "$DOTFILES_DIR" || exit 1
+    --output_dir "$OUTPUT_DIR" || exit 1
 
+
+#----------------------------------
 if [[ ! -d "$DOTFILES_DIR" || ! -s "$DOTFILES_DIR" ]]; then
     echo "[ERROR] GO graph not created or directory is empty."
     exit 1
