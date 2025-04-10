@@ -62,7 +62,8 @@ GoLizard is a multi-strategy bioinformatics pipeline that:
 
 ## 📦 Installation
 
-_Installation instructions coming soon._
+- Bash required / WSL for Windows
+- Install neccessary libraries from requirements.txt, environment.yml
 
 ---
 
