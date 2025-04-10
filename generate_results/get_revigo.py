@@ -192,8 +192,6 @@ def main():
     parser.add_argument("--max_attempts", type=int, default=5, help="Max attempts for REVIGO submission (default=5).")
     parser.add_argument("--max_wait", type=int, default=120, help="Max wait time for REVIGO submission (default=120).")
     parser.add_argument("--cutoff", type=float, default=0.7, help="Cutoff for REVIGO algorithm (default=0.7).")
-    #parser.add_argument("--delay", type=int, default=60, help="Delay in seconds between retries (default=60).")
-    # TODO List of types + ontologies
 
     args = parser.parse_args()
     timestamp = int(time.time())

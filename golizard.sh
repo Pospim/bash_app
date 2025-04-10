@@ -18,17 +18,46 @@ REVIGO_SCRIPT="$SCRIPT_DIR/generate_results/get_revigo.py"
 GO_OBO="$SCRIPT_DIR/meta/go-basic.obo"
 ELM_TO_GO="$SCRIPT_DIR/retrieval/elm_goterms.tsv"
 
+#--------------------------------------------------------------------------
+# Default parameters
 BLAST_DBS=("swissprot" "refseq_protein" "nr" 'genbank' 'gnomon' 'pdb')
 BLAST_PROGS=("blastp" "tblastn")
 FS_DBS=("afdb50" "afdb-swissprot" "afdb-proteome")
-MAX_SEQ_LEN=1000
+RESULT_TYPES=("jTable jScatterplot jCytoscape")
+MAX_SEQ_LEN=400
 
-# Function to show usage
-usage() {
+BLAST_DB=()
+BLAST_PROG="blastp"
+BLAST_KMAX=10
+BLAST_MAXEVAL=1e-5
+BLAST_MINIDENTITY=30.0
+BLAST_CLUSTER=0.9
+BLAST_LOCAL_DB=()
+
+FS_DB=()
+FS_MAXEVAL=10
+FS_MINIDENTITY=30.0
+FS_KMAX=10
+FS_CLUSTER=1.0
+
+INPUT_FILE=""
+OUTPUT="$SCRIPT_DIR/results"
+BLAST_RESULTS=""
+FS_API_RESULTS=""
+COMBINED_RESULTS=""
+ELM_RESULTS=""
+
+ELM_RUN=false
+CUTOFF=0.7
+REVIGO_RESULT=()
+
+# Help function
+function show_help {
     echo "Usage: $0 --file <path_to_fasta_file> [--outputdir <output_directory>]"
     echo
     echo "Optional arguments:"
     echo
+    echo "  --max-seq-len              Maximum allowed sequence length (default: $MAX_SEQ_LEN for FoldSeek)"
     echo "BLAST options:"
     echo "  --blast-dbs <database>          List of databases for remote BLAST (default: swissprot)"
     echo "                                  Valid options: ${BLAST_DBS[*]}"
@@ -53,55 +82,37 @@ usage() {
     echo
     echo "  --results <path>             Directly input BLAST and FoldSeek results (one protein ID per line) to skip querying"
     echo
-    echo "GO Term options:"
-    echo "  --GO <basic|plant>  Choose the GO ontology file to use (default: basic)"
+    echo "REVIGO options:"
+    echo "  --revigo-result <types>      Space-separated REVIGO result types"
+    echo "  --revigo-cutoff <value>      REVIGO algorithm cutoff (default: $CUTOFF)"
     echo
+    echo "  --help                   Show this help message"
     echo "Example usage:"
     echo "  $0 --file my_input.fasta --blast-local /path/to/blastdb/swissprot --subset-ids my_id_list.txt"
     echo "  $0 --file my_input.fasta --blast-local /path/to/blastdb/swissprot --subset-ids my_id_list.txt --blast-db swissprot"
     echo "  $0 --file my_input.fasta [no additional blast arguments => defaults to remote swissprot]"
-    exit 1
 }
 
 # Parse arguments
 if [[ $# -eq 0 ]]; then
-    usage
+    show_help
+    exit 1
 fi
-
-# Default parameters
-BLAST_DB=()
-BLAST_PROG="blastp"
-BLAST_KMAX=10
-BLAST_MAXEVAL=1e-5
-BLAST_MINIDENTITY=30.0
-BLAST_CLUSTER=0.9
-BLAST_LOCAL_DB=()
-
-FS_DB=()
-FS_MAXEVAL=10
-FS_MINIDENTITY=30.0
-FS_KMAX=10
-FS_CLUSTER=1.0
-
-INPUT_FILE=""
-OUTPUT="$SCRIPT_DIR/results"
-BLAST_RESULTS=""
-FS_API_RESULTS=""
-COMBINED_RESULTS=""
-ELM_RESULTS=""
-
-ELM_RUN=false
-
 
 # Read arguments
 while [[ $# -gt 0 ]]; do
-    case $1 in
+    key="$1"
+    case $key in
         --file)
             INPUT_FILE="$2"
             shift 2
             ;;
         --outputdir)
             OUTPUT="$2"
+            shift 2
+            ;;
+        --max-seq-len)
+            MAX_SEQ_LEN="$2"
             shift 2
             ;;
         --blast-dbs)
@@ -169,34 +180,34 @@ while [[ $# -gt 0 ]]; do
             COMBINED_RESULTS="$2"
             shift 2
             ;;
-        --GO)
-            case $2 in
-                #full)
-                #    GO_OBO="$SCRIPT_DIR/meta/go.obo"
-                #    ;;
-                basic)
-                    GO_OBO="$SCRIPT_DIR/meta/go-basic.obo"
-                    ;;
-                plant)
-                    GO_OBO="$SCRIPT_DIR/meta/goslim_plant.obo"
-                    ;;
-                *)
-                    echo "[ERROR] Invalid GO option: $2"
-                    usage
-                    exit 1
-                    ;;
-            esac
+        --revigo-result)
             shift
-            shift
+            while [[ $# -gt 0 && ! $1 == --* ]]; do
+                REVIGO_RESULT+=("$1")
+                shift
+            done
+            ;;
+        --revigo-cutoff)
+            CUTOFF="$2"
+            shift 2
+            ;;
+        --help)
+            show_help
+            exit 0
             ;;
         *)
-            usage
+            echo "Unknown option: $key"
+            show_help
+            exit 1
             ;;
     esac
 done
 
 if [[ ${#FS_DB[@]} -eq 0 ]]; then
     FS_DB=("afdb50")
+fi
+if [[ ${#REVIGO_RESULT[@]} -eq 0 ]]; then
+    REVIGO_RESULT=$RESULT_TYPES
 fi
 
 generate_subdir() {
@@ -522,7 +533,8 @@ echo "[INFO] Running REVIGO with "$GO_CSV"..."
 python "$REVIGO_SCRIPT" \
     --go_terms "$GO_CSV" \
     --output_dir "$OUTPUT_DIR" \
-     || exit 1
+    --result_type "$REVIGO_RESULT" \
+    --cutoff "$CUTOFF" || exit 1
 
 #----------------------------------
 #if [[ ! -d "$DOTFILES_DIR" || ! -s "$DOTFILES_DIR" ]]; then
