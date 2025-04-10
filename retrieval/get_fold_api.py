@@ -209,6 +209,9 @@ if __name__ == "__main__":
 
     try:
         sequence = get_seq(args.fasta, max_len=args.max_len)
+        if args.max_len > 400:
+            logging.warning(f"Sequence longer than 400, skipping FoldSeek.")
+            exit(0)
 
     except Exception as e:
         logging.error(f"Error reading FASTA file: {e}")

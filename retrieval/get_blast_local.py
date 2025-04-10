@@ -185,7 +185,7 @@ if __name__ == "__main__":
         with open(args.output_file, 'w') as outf:
             for result in all_results:
                 outf.write(result.strip() + '\n')
-        logging.info(f"Blast local results saved => {args.output_file}")
+        #logging.info(f"Blast local results saved => {args.output_file}")
     except IOError as e:
         logging.error(f"Error writing results to {args.output_file}: {e}")
         sys.exit(1)

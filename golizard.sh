@@ -21,7 +21,7 @@ ELM_TO_GO="$SCRIPT_DIR/retrieval/elm_goterms.tsv"
 BLAST_DBS=("swissprot" "refseq_protein" "nr" 'genbank' 'gnomon' 'pdb')
 BLAST_PROGS=("blastp" "tblastn")
 FS_DBS=("afdb50" "afdb-swissprot" "afdb-proteome")
-MAX_SEQ_LEN=400
+MAX_SEQ_LEN=1000
 
 # Function to show usage
 usage() {
@@ -343,7 +343,7 @@ if [[ -z "$BLAST_RESULTS" && -z "$COMBINED_RESULTS" ]]; then
         rm -f "$BLAST_LOCAL_RESULTS"
 
     else
-        echo "[WARNING] No BLAST arguments provided. Running default remote BLAST with swissprot..."
+        echo "[WARNING] No BLAST arguments provided. Running default remote BLAST on database Swissprot..."
 
         python "$BLAST_API_SCRIPT" \
             --fasta "$INPUT_FILE" \
@@ -404,21 +404,23 @@ fi
 ##########################################################################
 if [[ -z "$FS_API_RESULTS" && -z $COMBINED_RESULTS ]]; then
 
-    echo "[INFO] Running FoldSeek..."
-    FS_API_RESULTS="$OUTPUT_DIR/fold_api_results.txt"
-    python "$FS_API_SCRIPT" \
-            --fasta "$INPUT_FILE" \
-            --dbs "${FS_DB[@]}" \
-            --max_eval "$FS_MAXEVAL" \
-            --min_ident "$FS_MINIDENTITY" \
-            --kMax "$FS_KMAX" \
-            --max_len $MAX_SEQ_LEN \
-            --output_file "$FS_API_RESULTS" || exit 1
+    FS_API_RESULTS="$OUTPUT_DIR/fold_results.txt"
+    if [[ $MAX_SEQ_LEN -le 400 ]]; then
 
-    if [[ -n "$FS_API_RESULTS" && -s "$FS_API_RESULTS" ]]; then
-        echo "[INFO] FoldSeek results saved => $FS_API_RESULTS"
+        echo "[INFO] Running FoldSeek..."
+        python "$FS_API_SCRIPT" \
+                --fasta "$INPUT_FILE" \
+                --dbs "${FS_DB[@]}" \
+                --max_eval "$FS_MAXEVAL" \
+                --min_ident "$FS_MINIDENTITY" \
+                --kMax "$FS_KMAX" \
+                --max_len $MAX_SEQ_LEN \
+                --output_file "$FS_API_RESULTS" || exit 1
+
+        if [[ -n "$FS_API_RESULTS" && -s "$FS_API_RESULTS" ]]; then
+            echo "[INFO] FoldSeek results saved => $FS_API_RESULTS"
+        fi
     fi
-
 elif [[ -n "$FS_API_RESULTS" && ! -s "$FS_API_RESULTS" ]]; then
     echo "[ERROR] Provided FoldSeek results file is empty: $FS_API_RESULTS"
     exit 1
@@ -494,11 +496,15 @@ elif [[ "$ELM_RUN" == true && -s "$COMBINED_RESULTS" ]]; then # FS results copie
             --output_json "$FS_GO_DICT" \
             --output_csv "$FS_GO_CSV" || exit 1
         python "$MERGE_GO_SCRIPT" \
-            --elm "$ELM_RESULTS" \
-            --fs "$FS_GO_TERMS" \
-            --output "$GO_TERMS"
+            --elm_json "$ELM_RESULTS" \
+            --elm_csv "$ELM_CSV" \
+            --fs_json "$FS_GO_TERMS" \
+            --fs_csv "$FS_GO_CSV" \
+            --output_json "$GO_DICT" \
+            --output_csv "$GO_CSV" || exit 1
 else
     cp "$ELM_RESULTS" "$GO_DICT"
+    cp "$ELM_CSV" "$GO_CSV"
 fi
 
 if [[ ! -f "$GO_DICT" || ! -s "$GO_DICT" ]]; then
@@ -511,26 +517,24 @@ echo "[INFO] GO terms saved => $GO_DICT"
 ##########################################################################
 
 echo "--------------------------------------------------------------------"
-echo "[INFO] Creating GO graph using GOLizzard..."
+echo "[INFO] Running REVIGO with "$GO_CSV"..."
 
 python "$REVIGO_SCRIPT" \
-    --uniprot_to_go "$GO_DICT" \
-    --go_graph "$GO_OBO" \
-    --output_dir "$OUTPUT_DIR" || exit 1
-
+    --go_terms "$GO_CSV" \
+    --output_dir "$OUTPUT_DIR" \
+     || exit 1
 
 #----------------------------------
-if [[ ! -d "$DOTFILES_DIR" || ! -s "$DOTFILES_DIR" ]]; then
-    echo "[ERROR] GO graph not created or directory is empty."
-    exit 1
-fi
-
-if [ "$(ls -A "$DOTFILES_DIR" 2>/dev/null)" ]; then
-    echo "[INFO] GO graphs saved => $DOTFILES_DIR"
-else
-    echo "[ERROR] GO graph generation failed. Check the logs."
-    exit 1
-fi
+#if [[ ! -d "$DOTFILES_DIR" || ! -s "$DOTFILES_DIR" ]]; then
+#    echo "[ERROR] GO graph not created or directory is empty."
+#    exit 1
+#fi
+#if [ "$(ls -A "$DOTFILES_DIR" 2>/dev/null)" ]; then
+#    echo "[INFO] GO graphs saved => $DOTFILES_DIR"
+#else
+#    echo "[ERROR] GO graph generation failed. Check the logs."
+#    exit 1
+#fi
 
 
 # use pathlib import Path in path checks

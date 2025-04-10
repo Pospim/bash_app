@@ -127,7 +127,7 @@ def wait_for_completion(job_id: str, output_dir:str, max_wait: int = 60):
                 with open(out_path, 'w') as f:
                     f.write(results_link)
                 print("----------------------------------------------------------")
-                print(f"RESULTS: {results_link}")
+                print(f"RESULTS: {results_link}\n       !!!available for 15 minutes!!!")
                 print("----------------------------------------------------------")
 
                 return
@@ -173,7 +173,7 @@ def parse_results(job_id: str,
                     logging.warning(f"REVIGO returned error for {ontology}/{out_type}: {r.text.strip()}")
                     continue
                 else:
-                    out_path = Path(output_dir) / ontology / f"{out_type}."
+                    out_path = Path(output_dir) / ontology / f"{out_type}.json"
                     out_path.parent.mkdir(parents=True, exist_ok=True)
 
                     with open(out_path, 'w') as f:
@@ -218,10 +218,10 @@ def main():
 
         # 4) Fetch results
         parse_results(job_id, ontologies, result_types, output_dir=args.output_dir)
-        logging.info(f"Saved REVIGO results to {args.output_dir}")
 
         elapsed = int(time.time() - timestamp)
         logging.info(f"Elapsed time: {format_time(elapsed)}")
+        print(f"[INFO] Saved REVIGO results => {args.output_dir}")
 
     except Exception as e:
         logging.error(f"Error getting REVIGO results")
